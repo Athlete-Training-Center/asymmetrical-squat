@@ -12,8 +12,8 @@ clear
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % bodyweight setting
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-[body_weight_kg, option] = MultiInputGUI('AS');
-option = upper(option);
+[body_weight_kg, selectedFoot] = InputGUI_AS;
+FootDict = containers.Map({'right', 'left'}, {1, 2});
 
 % gravity acceleration (m/s^2)
 gravity = 9.80665;
@@ -53,12 +53,7 @@ centerpoint = [(xlim(1) + xlim(2)) / 2, (ylim(1) + ylim(2)) / 2];
 % bar blank between vertical center line and each bar
 margin = 300;
 
-switch option
-    case 'R'
-        loc_x = [centerpoint(1)+margin, ylim(1)]; % x2 y
-    case 'L'
-        loc_x = [centerpoint(1)-margin, ylim(1)]; % x1 y
-end
+loc_x = [centerpoint(1) + margin .* (-1)^(FootDict(selectedFoot)+1), ylim(1)]; % x y
 
 % each bar width
 width = 100;
@@ -66,18 +61,16 @@ width = 100;
 height = ylim(2) - ylim(1);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% draw target line
-%% Perform a target force 10 times at a random rate based on weight
+%% draw target line
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 target_value = 20; %  20 %
 margin_of_error = 1; %  1 %
 target_range = [target_value - margin_of_error, target_value + margin_of_error];
 
-target_line1 = plot([loc_x(1) - width/2, loc_x(1) + width/2], [target_range(1) target_range(1)], 'LineWidth', 3, 'Color', 'black');
-target_line2 = plot([loc_x(1) - width/2, loc_x(1) + width/2], [target_range(2) target_range(2)], 'LineWidth', 3, 'Color', 'black');
-text(loc_x(1) - width/2 - 50, target_value+2, sprintf("%d %%", target_value + margin_of_error), 'FontSize', 20, 'HorizontalAlignment', 'center', 'Color', 'black');
-text(loc_x(1) - width/2 - 50, target_value-2, sprintf("%d %%", target_value - margin_of_error), 'FontSize', 20, 'HorizontalAlignment', 'center', 'Color', 'black');
+target_line = plot([loc_x(1) - width/2, loc_x(1) + width/2], [target_value target_value], 'LineWidth', 10, 'Color', 'black');
+
+text(loc_x(1) - width/2 - 50, target_value, sprintf("%d %%", target_value), 'FontSize', 20, 'HorizontalAlignment', 'center', 'Color', 'black');
 
 % make handles for each bar to update vGRF and AP COP data
 plot_bar = plot([loc_x(1)-width/2, loc_x(1)-width/2], [ylim(1), ylim(1) + 100], 'LineWidth', width - 10,'Color','red');
@@ -95,7 +88,8 @@ plot(get(gca,'xlim'),[ylim(2) ylim(2)],'k', 'linewidth',3)
 plot(get(gca,'xlim'),[ylim(1) ylim(1)],'k', 'linewidth',3)
 title('Left                                                            Right','fontsize',30)
 
-grf_list = [];
+grf_diff_array = cell(1,1);
+i = 1;
 
 while true
     %use event function to avoid crash
@@ -103,9 +97,9 @@ while true
         event = QCM('event');
         % ### Fetch data from QTM
         [frameinfo,force] = QCM;
-        fig = get(groot, 'CurrentFigure');
-        if isempty(fig)
-            break
+        if ~ishandle(figureHandle)
+            QCM("disconnect");
+            break;
         end
 
         % error occurs when getting realtime grf data. Sometimes there is no data.
@@ -116,7 +110,11 @@ while true
         %get GRF Z from plate 1, 2 unit: kgf
         GRF1 = abs(force{2,2}(1,3));
         GRF2 = abs(force{2,1}(1,3));
-
+        %{
+        if GRF1 < 10 && GRF2 < 10
+            continue
+        end
+        %}
         relative_diff = abs(GRF2 - GRF1) / (GRF1 + GRF2) * 100;
 
         %Update each bar and COP line
@@ -124,7 +122,8 @@ while true
         
         drawnow;
 
-        grf_list = [grf_list, relative_diff];
+        grf_diff_array{i} = relative_diff;
+        i = i+1;
 
     catch exception
         disp(exception.message);
@@ -135,26 +134,27 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % draw the graph
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
-n = length(grf_list);
+grf_diff_array = cell2mat(grf_diff_array);
+n = length(grf_diff_array);
 
-[numRows, numCols] = size(grf_list);
+[numRows, numCols] = size(grf_diff_array);
 
 set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
 
 hold on;
 
-title(sprintf('Percent Difference from Target Value plate (%s)', option), 'FontSize', 20);
+title(sprintf('Percent Difference from Target Value plate (%s)', selectedFoot), 'FontSize', 20);
 xlabel('Time ', 'FontSize', 15);
 ylabel('Difference ', 'FontSize', 15);
 grid on;
 
-plot((1: numCols), grf_list, 'black');
+plot((1: numCols), grf_diff_array, 'black');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % calculate RMSE(Root Mean Sqaure Error)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
 text_position_x = round(numCols / 2);
-center_rmse = sqrt(sum((grf_list - target_value).^2) / n);
+center_rmse = sqrt(sum((grf_diff_array - target_value).^2) / n);
 disp(['Center Mean Percent Difference: ', num2str(center_rmse), '%']);
 plot([1 numCols], [target_value target_value], ...
     'black','LineWidth', 1, 'LineStyle','--');

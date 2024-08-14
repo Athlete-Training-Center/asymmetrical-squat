@@ -1,21 +1,13 @@
-function [paramter, option] = MultiInputGUI(Criteria)
+function [paramter, option] = InputGUI_AS
     % Initialize output variables
     paramter = '';
     option = '';
 
-    switch Criteria
-        case "AP"
-            sentence = {'Input the foot size (mm) : ', 'Input the option (1,2,3) : '};
-        case "WS"
-            sentence = {'Input the body weight (kg) : ', 'Input the option (R,L) : '};
-        case "AS"
-            sentence = {'Input the body weight (kg) : ', 'Input the option (R,L) : '};
-        case "ML"
-            sentence = {'Input the body weight (kg) : ', ''};
-    end
+    sentence = {'Input the body weight (kg) : ', 'choose left or right foot (left/right) : '};
 
+    
     % Create a figure for the GUI
-    fig = figure('Position', [300, 300, 400, 200], 'MenuBar', 'none', 'Name', 'Dual Input GUI', 'NumberTitle', 'off', 'Resize', 'off', 'CloseRequestFcn', @closeCallback);
+    fig = figure('Position', [300, 300, 400, length(sentence) * 100], 'MenuBar', 'none', 'Name', 'Dual Input GUI', 'NumberTitle', 'off', 'Resize', 'off', 'CloseRequestFcn', @closeCallback);
 
     % Create the first input label and text box
     uicontrol('Style', 'text', 'Position', [50, 140, 200, 30], 'String', sentence{1}, 'HorizontalAlignment', 'left', 'FontSize', 10);
@@ -61,7 +53,8 @@ function [paramter, option] = MultiInputGUI(Criteria)
 %            errordlg('Option must be R or L', 'Input Error');
 %            return;
 %        end
-
+        
+        
         % Store the inputs in the figure's UserData property
         data.paramter = paramter;
         data.option = option;
